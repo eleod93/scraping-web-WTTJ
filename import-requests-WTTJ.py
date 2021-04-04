@@ -95,8 +95,7 @@ def getEntrepriseInfo(url):
   return data
 
 
-def brownse_and_scrape_jobs(i, url):
-  print("Now Scraping")
+def brownse_and_scrape_jobs(nb_job, url):
   soup = BeautifulSoup(url, 'lxml')
   jobs = soup.find_all('div', {'class':'sc-7dlxn3-5 djGVHr'})
   for job in jobs:
@@ -113,26 +112,23 @@ def brownse_and_scrape_jobs(i, url):
     # print(getEntrepriseInfo(wttj_page_entreprise))
 
     insertLinkedindata(getEntrepriseInfo(wttj_page_entreprise))
-    insertJob(c, i, poste, entreprise, getJobInfos(poste_link)[0], getJobInfos(poste_link)[1], getJobInfos(poste_link)[2], getJobInfos(poste_link)[3], getJobInfos(poste_link)[4], secteur,getEntrepriseInfo(wttj_page_entreprise)[0], getEntrepriseInfo(wttj_page_entreprise)[1], getEntrepriseInfo(wttj_page_entreprise)[2], poste_link, wttj_page_entreprise)
-    i = i+1
+    insertJob(c, nb_job, poste, entreprise, getJobInfos(poste_link)[0], getJobInfos(poste_link)[1], getJobInfos(poste_link)[2], getJobInfos(poste_link)[3], getJobInfos(poste_link)[4], secteur,getEntrepriseInfo(wttj_page_entreprise)[0], getEntrepriseInfo(wttj_page_entreprise)[1], getEntrepriseInfo(wttj_page_entreprise)[2], poste_link, wttj_page_entreprise)
+    nb_job = nb_job + 1
+  return nb_job
 
 
+nb_job = 1
+x = 1
 
-int = 1
-i = 1
+job_requested = input('Nous allons démarrer le scraping du Job Board du site Welcome to the Jungle. Pour quel type de poste souhaitez-vous enregistrer de la donnée ?')
+nombre_page = input('Combien de pages de recherche souhaitez-vous scraper ?')
+if nombre_page.isdigit():
+  nombre_page = int(nombre_page)
+else:
+  nombre_page = input('Il est attendu un chiffre. Vous voulez réessayer ?')
 
-# url = 'https://www.welcometothejungle.com/fr/companies/aos'
-# tests = getHTML(url).find_all('span',{'class':'sc-1n18lhk-3 bWFoBD'})
-# annee = tests[0].get_text()
-# collaborateur = tests[1].get_text()
-# age_moyen = tests[2].get_text()
-
-
-# print(annee, collaborateur, age_moyen)
-
-
-driver = webdriver.Chrome(executable_path = '/usr/local/bin/chromedriver')
 quote_page = 'https://www.welcometothejungle.com/fr/jobs?page='
+driver = webdriver.Chrome(executable_path = '/usr/local/bin/chromedriver')
 
 # Créer un SQL et un fichier excel
 conn = sqlite3.connect('example_WTTJ.db')
@@ -141,13 +137,14 @@ createTable(c)
 createLinkedinExcel()
 
 # Ouvrir WTTJ et Scraper toutes les pages du site
-while int < 2:
-  page = quote_page + str(int) + '&aroundQuery=&refinementList%5Borganization.size.fr%5D=&refinementList%5Bprofession_name.fr.Business%5D%5B%5D=Business%20Development'
+while x < nombre_page+1:
+  page = quote_page + str(x) + '&query=' + job_requested
   driver.get(page)
   driver.implicitly_wait(100) # seconds
-  brownse_and_scrape_jobs(i, driver.page_source)
-  print('La page ' + str(int) + ' a été scrappé')
-  int = int + 1
+  print("Lancement du scraping pour la page " + str(x))
+  nb_job = brownse_and_scrape_jobs(nb_job, driver.page_source)
+  print('La page ' + str(x) + ' a été scrappée')
+  x = x + 1
 
 # print(data)
 driver.quit()
