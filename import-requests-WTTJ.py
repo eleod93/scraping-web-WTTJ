@@ -1,4 +1,5 @@
 from selenium import webdriver
+from datetime import datetime
 import requests
 from bs4 import BeautifulSoup
 import sqlite3
@@ -10,20 +11,19 @@ def createTable(c):
              poste text,
              entreprise text,
              contrat text,
-             date_debut text,
+             date_debut datetime,
              salaire text,
              ville text,
              etude text,
              secteur text,
              annee text,
              collaborateur text,
-             age_moyen text,
              post_link text,
              linkedin_entreprise text)''')
 
-def insertJob(c, identifiant, poste, entreprise, contrat, date_debut, salaire, ville, etude, secteur, annee, collaborateur, age_moyen, post_link, linkedin_entreprise):
-  c.execute('''INSERT INTO jobs(id, poste, entreprise, contrat, date_debut, salaire, ville, etude, secteur, annee, collaborateur, age_moyen, post_link, linkedin_entreprise)
-                  VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', (identifiant, poste, entreprise, contrat, date_debut, salaire, ville, etude, secteur, annee, collaborateur, age_moyen, post_link, linkedin_entreprise))
+def insertJob(c, identifiant, poste, entreprise, contrat, date_debut, salaire, ville, etude, secteur, annee, collaborateur, post_link, linkedin_entreprise):
+  c.execute('''INSERT INTO jobs(id, poste, entreprise, contrat, date_debut, salaire, ville, etude, secteur, annee, collaborateur, post_link, linkedin_entreprise)
+                  VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)''', (identifiant, poste, entreprise, contrat, date_debut, salaire, ville, etude, secteur, annee, collaborateur, post_link, linkedin_entreprise))
 
 def createLinkedinExcel():
     with open('linkedin_data.csv', 'w') as my_file:
@@ -34,7 +34,7 @@ def insertLinkedindata(data):
         output = file.read()
     memory = output
     with open('linkedin_data.csv', 'w') as my_File:
-        my_File.write(memory + "\n" + str(data[3]))
+        my_File.write(memory + "\n" + str(data[2]))
 
 def getHTML(self):
   # Récupérer le HTML d'un url
@@ -55,7 +55,8 @@ def getJobInfos(url):
   if job_summary.find('i',{'name':'clock'})is None:
     clock = ''
   else:
-    clock = job_summary.find('i',{'name':'clock'}).parent.next_sibling.find('time')['datetime']
+    clock_text = job_summary.find('i',{'name':'clock'}).parent.next_sibling.find('time')['datetime'].replace('GMT+0000 (Coordinated Universal Time)','')
+    clock = datetime.strptime(clock_text, '%a %b %d %Y %H:%M:%S ')
 
   # Récupérer le salaire du poste
   if job_summary.find('i',{'name':'salary'}) is None :
@@ -84,14 +85,13 @@ def getEntrepriseInfo(url):
   infos = page_entreprise.find_all('span',{'class':'sc-1n18lhk-3 bWFoBD'})
   annee = infos[0].get_text()
   collaborateur = infos[1].get_text()
-  age_moyen = infos[2].get_text()
 
   if page_entreprise.find('i',{'name':'linkedin'},title=True) is None:
     linkedin_entreprise = ''
   else:
     linkedin_entreprise= page_entreprise.find('i',{'name':'linkedin'},title=True).parent['href']
 
-  data.extend([annee, collaborateur, age_moyen, linkedin_entreprise])
+  data.extend([annee, collaborateur, linkedin_entreprise])
   return data
 
 
@@ -109,16 +109,20 @@ def brownse_and_scrape_jobs(nb_job, url):
 
     # Récupérer le linkedin de l'entreprise
     wttj_page_entreprise = 'https://www.welcometothejungle.com' + getHTML(poste_link).find('a', {'class':'sc-17gqtt5-1 gUEgnZ'})['href']
-    # print(getEntrepriseInfo(wttj_page_entreprise))
 
+    # Mise à jour du fichier excel csv
     insertLinkedindata(getEntrepriseInfo(wttj_page_entreprise))
-    insertJob(c, nb_job, poste, entreprise, getJobInfos(poste_link)[0], getJobInfos(poste_link)[1], getJobInfos(poste_link)[2], getJobInfos(poste_link)[3], getJobInfos(poste_link)[4], secteur,getEntrepriseInfo(wttj_page_entreprise)[0], getEntrepriseInfo(wttj_page_entreprise)[1], getEntrepriseInfo(wttj_page_entreprise)[2], poste_link, wttj_page_entreprise)
+
+    # Mise à jour de la BD SQL
+    insertJob(c, nb_job, poste, entreprise, getJobInfos(poste_link)[0], getJobInfos(poste_link)[1], getJobInfos(poste_link)[2], getJobInfos(poste_link)[3], getJobInfos(poste_link)[4], secteur,getEntrepriseInfo(wttj_page_entreprise)[0], getEntrepriseInfo(wttj_page_entreprise)[1], poste_link, wttj_page_entreprise)
     nb_job = nb_job + 1
+
   return nb_job
 
 
 nb_job = 1
 x = 1
+
 
 job_requested = input('Nous allons démarrer le scraping du Job Board du site Welcome to the Jungle. Pour quel type de poste souhaitez-vous enregistrer de la donnée ?')
 nombre_page = input('Combien de pages de recherche souhaitez-vous scraper ?')
@@ -140,13 +144,12 @@ createLinkedinExcel()
 while x < nombre_page+1:
   page = quote_page + str(x) + '&query=' + job_requested
   driver.get(page)
-  driver.implicitly_wait(100) # seconds
+  driver.implicitly_wait(200) # seconds
   print("Lancement du scraping pour la page " + str(x))
   nb_job = brownse_and_scrape_jobs(nb_job, driver.page_source)
   print('La page ' + str(x) + ' a été scrappée')
   x = x + 1
 
-# print(data)
 driver.quit()
 conn.commit()
 conn.close()
